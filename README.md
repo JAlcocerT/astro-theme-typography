@@ -11,6 +11,8 @@ npm run dev
 
 It logs in via your github as per `.env` and displays the toastui editor to edit posts.
 
+> These are personal tests to build a general astro journal, see the [related post](https://jalcocert.github.io/JAlcocerT/nextjs-toast-ui-editor/)
+
 
 ---
 
