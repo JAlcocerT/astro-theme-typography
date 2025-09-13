@@ -16,9 +16,10 @@ interface PostsListProps {
   posts: Post[]
   onSelectPost: (post: Post) => void
   selectedPost: Post | null
+  onDeletePost?: (post: Post) => void
 }
 
-export default function PostsList({ posts, onSelectPost, selectedPost }: PostsListProps) {
+export default function PostsList({ posts, onSelectPost, selectedPost, onDeletePost }: PostsListProps) {
   const [searchTerm, setSearchTerm] = useState('')
 
   const filteredPosts = posts.filter(post =>
@@ -82,13 +83,15 @@ export default function PostsList({ posts, onSelectPost, selectedPost }: PostsLi
             {filteredPosts.map((post) => (
               <div
                 key={post.filename}
-                onClick={() => onSelectPost(post)}
-                className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                className={`p-4 hover:bg-gray-50 transition-colors ${
                   selectedPost?.filename === post.filename ? 'bg-blue-50 border-r-4 border-blue-500' : ''
                 }`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
+                  <div 
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => onSelectPost(post)}
+                  >
                     <h3 className="text-sm font-medium text-gray-900 truncate">
                       {post.frontmatter.title || post.filename}
                     </h3>
@@ -119,8 +122,24 @@ export default function PostsList({ posts, onSelectPost, selectedPost }: PostsLi
                       </div>
                     )}
                   </div>
-                  <div className="ml-2 text-xs text-gray-400">
-                    {formatFileSize(post.size)}
+                  <div className="ml-2 flex items-center space-x-2">
+                    <div className="text-xs text-gray-400">
+                      {formatFileSize(post.size)}
+                    </div>
+                    {onDeletePost && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`Are you sure you want to delete "${post.filename}"?`)) {
+                            onDeletePost(post)
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                        title="Delete post"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
