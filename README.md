@@ -1,3 +1,14 @@
+
+
+Forked the Astro Theme:
+
+And vibe coded a NextJS `admin-panel` to edit posts via webUI.
+
+
+
+---
+
+
 # Typography
 
 <p align='center'>
