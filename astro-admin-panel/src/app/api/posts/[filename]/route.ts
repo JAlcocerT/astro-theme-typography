@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import { Octokit } from '@octokit/rest'
 import { Buffer } from 'buffer'
+import fs from 'fs'
+import path from 'path'
 
 export async function PUT(
   request: NextRequest,
@@ -23,12 +25,18 @@ export async function PUT(
     console.log('Saving file:', decodedFilename)
     
     const body = await request.json()
-    const { content, frontmatter } = body
+    const { content, frontmatter, source } = body
     console.log('Content length:', content?.length)
     console.log('Frontmatter:', frontmatter)
+    console.log('Source:', source)
 
     if (!content) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
+    }
+
+    // If source is local, save to local file instead of GitHub
+    if (source === 'local') {
+      return await saveToLocalFile(decodedFilename, content, frontmatter)
     }
 
     const octokit = new Octokit({
@@ -149,6 +157,55 @@ export async function DELETE(
     console.error('Error deleting post:', error)
     return NextResponse.json(
       { error: 'Failed to delete post', details: error.message },
+      { status: 500 }
+    )
+  }
+}
+
+// Helper function to save to local file
+async function saveToLocalFile(filename: string, content: string, frontmatter: any) {
+  try {
+    console.log('Saving to local file:', filename)
+    
+    // Create frontmatter string
+    const frontmatterStr = frontmatter && Object.keys(frontmatter).length > 0
+      ? `---\n${Object.entries(frontmatter)
+          .map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return `${key}: [${value.map(v => `"${v}"`).join(', ')}]`
+            }
+            return `${key}: "${value}"`
+          })
+          .join('\n')}\n---\n\n`
+      : ''
+
+    const fullContent = frontmatterStr + content
+    
+    // Save to local file
+    const postsDir = path.join(process.cwd(), '..', 'src', 'content', 'posts')
+    const filePath = path.join(postsDir, filename)
+    
+    console.log('Local file path:', filePath)
+    
+    // Ensure directory exists
+    if (!fs.existsSync(postsDir)) {
+      fs.mkdirSync(postsDir, { recursive: true })
+    }
+    
+    fs.writeFileSync(filePath, fullContent, 'utf-8')
+    
+    console.log('Successfully saved to local file')
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Post saved successfully to local file',
+      sha: 'local',
+      path: filePath,
+    })
+  } catch (error: any) {
+    console.error('Error saving to local file:', error)
+    return NextResponse.json(
+      { error: 'Failed to save to local file', details: error.message },
       { status: 500 }
     )
   }

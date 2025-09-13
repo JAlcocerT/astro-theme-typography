@@ -22,6 +22,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [postsSource, setPostsSource] = useState<string>('unknown')
 
   const fetchPosts = async () => {
     setLoading(true)
@@ -41,6 +42,7 @@ export default function Home() {
       const data = await response.json()
       // console.log('Posts data:', data)
       setPosts(data.posts || [])
+      setPostsSource(data.source || 'unknown')
     }
     catch (err) {
       console.error('Fetch error:', err)
@@ -72,6 +74,7 @@ export default function Home() {
         body: JSON.stringify({
           content,
           frontmatter: selectedPost.frontmatter,
+          source: postsSource,
         }),
       })
 
@@ -179,6 +182,17 @@ export default function Home() {
             <div>
               <h1 className="text-3xl text-gray-900 font-bold">Admin Panel</h1>
               <p className="text-gray-600">Manage your Astro blog posts</p>
+              <div className="mt-2">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  postsSource === 'github' 
+                    ? 'bg-green-100 text-green-800' 
+                    : postsSource === 'local' 
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
+                }`}>
+                  📍 Posts from: {postsSource === 'github' ? 'GitHub' : postsSource === 'local' ? 'Local Files' : 'Unknown'}
+                </span>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <button

@@ -5,131 +5,127 @@ import { Octokit } from '@octokit/rest'
 import { Buffer } from 'buffer'
 import fs from 'fs'
 import path from 'path'
+import matter from 'gray-matter'
 
 export async function GET(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized - No session or access token' }, { status: 401 })
-    }
+    // Try to get posts from GitHub first, fallback to local files
+    let posts: any[] = []
+    
+    if (session?.accessToken) {
+      // Try GitHub first
+      try {
+        const octokit = new Octokit({
+          auth: session.accessToken,
+        })
 
-    const octokit = new Octokit({
-      auth: session.accessToken,
-    })
+        console.log('Fetching posts from GitHub...')
+        const response = await octokit.rest.repos.getContent({
+          owner: process.env.GITHUB_OWNER!,
+          repo: process.env.GITHUB_REPO!,
+          path: 'src/content/posts',
+        })
+        
+        const files = response.data
+        console.log('GitHub files found:', Array.isArray(files) ? files.length : 'Not an array')
 
-    // Get posts from GitHub repository
-    let files: any
-    try {
-      const response = await octokit.rest.repos.getContent({
-        owner: process.env.GITHUB_OWNER!,
-        repo: process.env.GITHUB_REPO!,
-        path: 'src/content/posts',
-      })
-      files = response.data
-    } catch (githubError: any) {
-      console.error('GitHub API error:', githubError.message)
-      if (githubError.status === 404) {
-        return NextResponse.json({ error: 'Posts directory not found in repository' }, { status: 404 })
-      }
-      throw githubError
-    }
-
-    if (!Array.isArray(files)) {
-      return NextResponse.json({ posts: [] })
-    }
-
-    // Filter for markdown files and fetch their content
-    const posts = await Promise.all(
-      files
-        .filter(file => file.name.endsWith('.md') || file.name.endsWith('.mdx'))
-        .map(async (file) => {
-          try {
-            const fileResponse = await octokit.rest.repos.getContent({
-              owner: process.env.GITHUB_OWNER!,
-              repo: process.env.GITHUB_REPO!,
-              path: file.path,
-            })
-            const fileData = fileResponse.data
-
-            if ('content' in fileData) {
-              const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
-              
-              // Parse frontmatter
-              const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
-              let frontmatter = {}
-              let markdownContent = content
-
-              if (frontmatterMatch) {
+        if (Array.isArray(files)) {
+          // Filter for markdown files and fetch their content
+          posts = await Promise.all(
+            files
+              .filter(file => file.name.endsWith('.md') || file.name.endsWith('.mdx'))
+              .map(async (file) => {
                 try {
-                  // Simple YAML parsing for basic frontmatter
-                  const frontmatterText = frontmatterMatch[1]
-                  frontmatter = parseSimpleYaml(frontmatterText)
-                  markdownContent = frontmatterMatch[2]
-                } catch (error) {
-                  console.error('Error parsing frontmatter:', error)
-                }
-              }
+                  const fileResponse = await octokit.rest.repos.getContent({
+                    owner: process.env.GITHUB_OWNER!,
+                    repo: process.env.GITHUB_REPO!,
+                    path: file.path,
+                  })
+                  const fileData = fileResponse.data
 
+                  if ('content' in fileData) {
+                    const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+
+                    // Parse frontmatter
+                    const { data: frontmatter, content: markdownContent } = matter(content)
+
+                    return {
+                      filename: file.name,
+                      path: file.path,
+                      content: markdownContent,
+                      frontmatter,
+                      sha: file.sha,
+                      size: file.size,
+                      lastModified: fileData.last_modified,
+                    }
+                  }
+                  return null
+                } catch (fileFetchError: any) {
+                  console.error(`Error fetching content for ${file.name}:`, fileFetchError.message)
+                  return null
+                }
+              })
+          )
+        }
+        
+        console.log('Successfully fetched posts from GitHub:', posts.filter(Boolean).length)
+        return NextResponse.json({ posts: posts.filter(Boolean), source: 'github' })
+        
+      } catch (githubError: any) {
+        console.error('GitHub API error, falling back to local files:', githubError.message)
+        // Fall through to local file reading
+      }
+    }
+    
+    // Fallback: Read from local files
+    console.log('Reading posts from local files...')
+    try {
+      const postsDir = path.join(process.cwd(), '..', 'src', 'content', 'posts')
+      console.log('Local posts directory:', postsDir)
+      
+      if (fs.existsSync(postsDir)) {
+        const files = fs.readdirSync(postsDir)
+        console.log('Local files found:', files.length)
+        
+        posts = files
+          .filter(file => file.endsWith('.md') || file.endsWith('.mdx'))
+          .map(file => {
+            try {
+              const filePath = path.join(postsDir, file)
+              const content = fs.readFileSync(filePath, 'utf-8')
+              const { data: frontmatter, content: markdownContent } = matter(content)
+              const stats = fs.statSync(filePath)
+              
               return {
-                filename: file.name,
-                path: file.path,
+                filename: file,
+                path: `src/content/posts/${file}`,
                 content: markdownContent,
                 frontmatter,
-                sha: fileData.sha,
-                size: fileData.size,
-                lastModified: new Date().toISOString(), // GitHub doesn't provide this easily
+                sha: 'local', // No SHA for local files
+                size: stats.size,
+                lastModified: stats.mtime.toISOString(),
               }
+            } catch (fileError: any) {
+              console.error(`Error reading local file ${file}:`, fileError.message)
+              return null
             }
-            return null
-          } catch (error) {
-            console.error(`Error fetching file ${file.name}:`, error)
-            return null
-          }
-        })
-    )
-
-    const validPosts = posts.filter(post => post !== null)
-
-    return NextResponse.json({ posts: validPosts })
-  } catch (error) {
-    console.error('Error fetching posts:', error)
-    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 })
-  }
-}
-
-// Simple YAML parser for basic frontmatter
-function parseSimpleYaml(yamlText: string): Record<string, any> {
-  const result: Record<string, any> = {}
-  const lines = yamlText.split('\n')
-  
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed && !trimmed.startsWith('#')) {
-      const colonIndex = trimmed.indexOf(':')
-      if (colonIndex > 0) {
-        const key = trimmed.substring(0, colonIndex).trim()
-        let value = trimmed.substring(colonIndex + 1).trim()
+          })
+          .filter(Boolean)
         
-        // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) || 
-            (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1)
-        }
-        
-        // Try to parse as array
-        if (value.startsWith('[') && value.endsWith(']')) {
-          try {
-            value = JSON.parse(value)
-          } catch {
-            // Keep as string if parsing fails
-          }
-        }
-        
-        result[key] = value
+        console.log('Successfully read local posts:', posts.length)
+        return NextResponse.json({ posts, source: 'local' })
+      } else {
+        console.error('Local posts directory not found:', postsDir)
+        return NextResponse.json({ posts: [], source: 'none', error: 'No posts directory found' })
       }
+    } catch (localError: any) {
+      console.error('Error reading local files:', localError.message)
+      return NextResponse.json({ posts: [], source: 'none', error: localError.message })
     }
+  } catch (error: any) {
+    console.error('Failed to fetch posts in API route:', error)
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
   }
-  
-  return result
 }
