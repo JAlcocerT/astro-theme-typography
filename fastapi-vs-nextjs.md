@@ -270,7 +270,163 @@ class GitService {
 - **Same rate limits** - GitHub API rate limits apply
 - **Serverless limits** - Execution time limits for large operations
 
-### 6. Toast UI Editor Integration
+### 6. Git Provider Flexibility: GitHub vs Gitea
+
+Both architectures can be adapted to use different Git providers. Here's an analysis of swapping GitHub API for Gitea API:
+
+#### Current Architecture Compatibility
+
+**Both FastAPI and Next.js approaches are Git provider agnostic** - they only require:
+- REST API access to Git repositories
+- OAuth authentication support
+- File creation/update capabilities
+- Webhook support for triggering rebuilds
+
+#### Gitea API Integration
+
+**FastAPI Backend with Gitea:**
+```python
+from gitea import Gitea
+import base64
+
+class GiteaService:
+    def __init__(self, access_token: str, gitea_url: str):
+        self.gitea = Gitea(gitea_url, access_token)
+        self.repo = self.gitea.get_repo("username/repo")
+    
+    async def create_post(self, filename: str, content: str, frontmatter: dict):
+        frontmatter_str = "---\n" + "\n".join([f"{k}: {v}" for k, v in frontmatter.items()]) + "\n---\n\n"
+        full_content = frontmatter_str + content
+        
+        # Gitea API call
+        self.gitea.create_file(
+            owner="username",
+            repo="repo",
+            filepath=f"src/content/posts/{filename}.md",
+            content=base64.b64encode(full_content.encode()).decode(),
+            message=f"Add new post: {filename}",
+            branch="main"
+        )
+```
+
+**Next.js with Gitea:**
+```typescript
+import axios from 'axios'
+
+class GiteaService {
+  private baseURL: string
+  private token: string
+  
+  constructor(giteaUrl: string, accessToken: string) {
+    this.baseURL = giteaUrl
+    this.token = accessToken
+  }
+  
+  async createPost(filename: string, content: string, frontmatter: Record<string, any>) {
+    const frontmatterStr = `---\n${Object.entries(frontmatter)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('\n')}\n---\n\n`
+    
+    const fullContent = frontmatterStr + content
+    
+    await axios.post(`${this.baseURL}/api/v1/repos/username/repo/contents/src/content/posts/${filename}.md`, {
+      message: `Add new post: ${filename}`,
+      content: Buffer.from(fullContent).toString('base64'),
+      branch: 'main'
+    }, {
+      headers: { Authorization: `token ${this.token}` }
+    })
+  }
+}
+```
+
+#### Difficulty Assessment: **EASY** ⭐⭐☆☆☆
+
+**Why it's easy:**
+- **Same API patterns** - Both GitHub and Gitea use similar REST API structures
+- **Minimal code changes** - Only need to swap API client libraries
+- **Same authentication flow** - OAuth2 works identically
+- **Same file operations** - Create/update/delete operations are similar
+
+**Required changes:**
+1. **Replace API client** - Swap PyGithub/Octokit for Gitea client
+2. **Update API endpoints** - Change from GitHub API URLs to Gitea API URLs
+3. **Modify authentication** - Update OAuth provider configuration
+4. **Update webhook URLs** - Change webhook endpoints for rebuild triggers
+
+#### Pros of Using Gitea
+
+**Advantages:**
+- **Self-hosted control** - Complete control over your Git infrastructure
+- **No rate limits** - No API rate limiting (unlike GitHub's 5000 requests/hour)
+- **Privacy** - Your code and data stay on your infrastructure
+- **Cost savings** - No GitHub private repository costs
+- **Customization** - Can customize Gitea instance to your needs
+- **No vendor lock-in** - Not dependent on GitHub's policies or availability
+- **Better for enterprise** - More suitable for corporate environments
+
+**Technical benefits:**
+- **Higher API limits** - No artificial rate limiting
+- **Faster API responses** - Local network vs external API calls
+- **Custom webhooks** - Can customize webhook payloads
+- **Backup control** - Full control over repository backups
+
+#### Cons of Using Gitea
+
+**Disadvantages:**
+- **Infrastructure overhead** - Need to maintain Gitea server
+- **Setup complexity** - Initial setup and configuration required
+- **Maintenance burden** - Need to handle updates, security patches
+- **Backup responsibility** - Must implement your own backup strategy
+- **Limited ecosystem** - Fewer third-party integrations than GitHub
+- **Smaller community** - Less community support and documentation
+
+**Technical challenges:**
+- **SSL/TLS setup** - Need to configure HTTPS for OAuth
+- **Domain management** - Need to manage DNS and domain
+- **Monitoring** - Need to monitor Gitea server health
+- **Scaling** - Need to handle scaling as usage grows
+
+#### Migration Effort
+
+**Time estimate: 1-2 days**
+
+**Steps:**
+1. **Setup Gitea instance** (4-8 hours)
+   - Install and configure Gitea
+   - Setup SSL certificates
+   - Configure OAuth applications
+   - Import existing repository
+
+2. **Update application code** (2-4 hours)
+   - Replace GitHub API client with Gitea client
+   - Update API endpoints and authentication
+   - Test all Git operations
+
+3. **Update deployment** (2-4 hours)
+   - Update webhook configurations
+   - Update environment variables
+   - Test end-to-end workflow
+
+#### Recommendation
+
+**Use Gitea if:**
+- You want **complete control** over your Git infrastructure
+- You have **privacy/security requirements**
+- You want to **avoid GitHub rate limits**
+- You have **infrastructure expertise** to maintain Gitea
+- You're building for **enterprise/corporate use**
+
+**Stick with GitHub if:**
+- You want **zero infrastructure maintenance**
+- You value **GitHub's ecosystem** and integrations
+- You prefer **managed services**
+- You're building for **open source** or **personal projects**
+- You want **maximum community support**
+
+The architecture is **fully compatible** with either provider, making this a **low-risk decision** that can be changed later if needed.
+
+### 7. Toast UI Editor Integration
 
 Both approaches integrate with Toast UI Editor identically on the frontend:
 
@@ -304,7 +460,7 @@ function PostEditor({ initialContent, onSave }: Props) {
 }
 ```
 
-### 7. Cost Analysis
+### 8. Cost Analysis
 
 #### FastAPI Backend
 **Free Tier Options:**
@@ -323,7 +479,7 @@ function PostEditor({ initialContent, onSave }: Props) {
 
 **Total Cost:** $0/month (within free tiers)
 
-### 8. Maintenance & Monitoring
+### 9. Maintenance & Monitoring
 
 #### FastAPI Backend
 
