@@ -356,14 +356,27 @@ The goal is to maintain the performance benefits of a static site while adding a
 5. **Free hosting** - Can use free tiers for admin interface
 6. **Collaborative** - Multiple editors can work with proper Git workflow
 
-### Technology Stack
+### Technology Stack Options
 
+#### Option A: Next.js Full-Stack (Recommended)
 - **Frontend**: Next.js 14 with App Router
+- **Backend**: Next.js API Routes
 - **Editor**: Toast UI Editor (WYSIWYG + Markdown with KaTeX support)
 - **Styling**: Tailwind CSS (consistent with UnoCSS)
 - **Authentication**: GitHub OAuth (via NextAuth.js)
 - **Git Integration**: GitHub API or GitLab API
-- **Deployment**: Vercel/Netlify (admin interface)
+- **Deployment**: Vercel/Netlify (single deployment)
+- **Content Storage**: Git repository (your existing repo)
+- **Rebuild Trigger**: Cloudflare Pages (automatic on Git push)
+
+#### Option B: FastAPI Backend + Frontend
+- **Frontend**: React/Vue/Svelte (separate app)
+- **Backend**: FastAPI (Python)
+- **Editor**: Toast UI Editor (WYSIWYG + Markdown with KaTeX support)
+- **Styling**: Tailwind CSS or similar
+- **Authentication**: GitHub OAuth (via FastAPI-Users or Authlib)
+- **Git Integration**: PyGithub or GitLab API
+- **Deployment**: Railway/Render (backend) + Vercel/Netlify (frontend)
 - **Content Storage**: Git repository (your existing repo)
 - **Rebuild Trigger**: Cloudflare Pages (automatic on Git push)
 
@@ -396,10 +409,46 @@ The goal is to maintain the performance benefits of a static site while adding a
    - Import/export
    - Site preview
 
+### FastAPI vs Next.js Comparison
+
+#### FastAPI Backend Approach
+**Pros:**
+- **Python ecosystem** - If you're more comfortable with Python
+- **FastAPI performance** - Excellent async performance
+- **Rich libraries** - PyGithub, Authlib, etc.
+- **API-first** - Clean separation between frontend and backend
+- **Scalability** - Can handle multiple frontend clients
+
+**Cons:**
+- **Two deployments** - Need to manage backend and frontend separately
+- **CORS complexity** - Need to handle cross-origin requests
+- **More infrastructure** - Two services to monitor and maintain
+- **Development complexity** - Need to run two servers during development
+
+#### Next.js Full-Stack Approach
+**Pros:**
+- **Single deployment** - Everything in one place
+- **No CORS issues** - Frontend and backend in same domain
+- **Simpler development** - One server, one codebase
+- **Better DX** - Hot reload, TypeScript, etc.
+- **Vercel optimization** - Optimized for Next.js deployments
+
+**Cons:**
+- **JavaScript/TypeScript only** - If you prefer Python
+- **Serverless limitations** - API routes have execution time limits
+- **Less flexible** - Tied to Next.js ecosystem
+
 ### Implementation Timeline
 
+#### FastAPI Approach:
+- **Week 1**: Setup FastAPI backend, GitHub OAuth, basic API endpoints
+- **Week 2**: Create frontend app, integrate Toast UI Editor
+- **Week 3**: Implement Git API integration, post management
+- **Week 4**: Testing, deployment, documentation
+
+#### Next.js Approach:
 - **Week 1**: Setup Next.js app, GitHub OAuth, basic routing
-- **Week 2**: Implement Tiptap editor, markdown preview, Git API integration
+- **Week 2**: Implement Toast UI Editor, Git API integration
 - **Week 3**: Add post management, file operations, testing
 - **Week 4**: Polish UI, deployment, documentation
 
