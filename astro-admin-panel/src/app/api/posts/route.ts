@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '../auth/[...nextauth]/route'
 import { Octokit } from '@octokit/rest'
+import { Buffer } from 'buffer'
 import fs from 'fs'
 import path from 'path'
 

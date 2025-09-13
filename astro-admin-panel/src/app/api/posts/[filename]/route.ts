@@ -2,22 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import { Octokit } from '@octokit/rest'
+import { Buffer } from 'buffer'
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
+    console.log('Save API route called')
     const session = await getServerSession(authOptions)
+    console.log('Session in save:', session ? 'Found' : 'Not found')
     
     if (!session?.accessToken) {
+      console.log('No access token in save route')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { filename } = await params
     const decodedFilename = decodeURIComponent(filename)
+    console.log('Saving file:', decodedFilename)
+    
     const body = await request.json()
     const { content, frontmatter } = body
+    console.log('Content length:', content?.length)
+    console.log('Frontmatter:', frontmatter)
 
     if (!content) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
@@ -61,6 +69,11 @@ export async function PUT(
     }
 
     // Update or create the file
+    console.log('GitHub API call - Owner:', process.env.GITHUB_OWNER)
+    console.log('GitHub API call - Repo:', process.env.GITHUB_REPO)
+    console.log('GitHub API call - Path:', `src/content/posts/${decodedFilename}`)
+    console.log('GitHub API call - SHA:', currentSha)
+    
     const { data: result } = await octokit.rest.repos.createOrUpdateFileContents({
       owner: process.env.GITHUB_OWNER!,
       repo: process.env.GITHUB_REPO!,
@@ -70,6 +83,8 @@ export async function PUT(
       sha: currentSha, // undefined for new files
       branch: 'main',
     })
+    
+    console.log('GitHub API success:', result.commit?.sha)
 
     return NextResponse.json({
       success: true,
