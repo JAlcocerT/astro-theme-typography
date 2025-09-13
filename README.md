@@ -1,9 +1,15 @@
 
 
-Forked the Astro Theme:
+Forked the Astro Theme: https://github.com/moeyua/astro-theme-typography
 
-And vibe coded a NextJS `admin-panel` to edit posts via webUI.
+And vibe coded a NextJS `admin-panel` to edit posts via a webUI with Toast editor.
 
+```sh
+cd astro-admin-panel
+npm run dev
+```
+
+It logs in via your github as per `.env` and displays the toastui editor to edit posts.
 
 
 ---
